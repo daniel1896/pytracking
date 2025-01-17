@@ -1,5 +1,7 @@
-# PyTracking
-A general python framework for visual object tracking and video object segmentation, based on **PyTorch**.
+# Pytracking
+
+Slightly modified version of the [pytracking](https://github.com/visionml/pytracking) repository.
+Make sure to clone this repository with the  **--recurse_submodules** flag  and initialize the submodules:
 
 ### :fire: One tracking paper accepted at WACV 2024! 👇
 * [Beyond SOT: Tracking Multiple Generic Objects at Once](https://arxiv.org/abs/2212.11920) | **Code available!**
@@ -184,52 +186,48 @@ on standard CPUs.
 ## Installation
 
 #### Clone the GIT repository.  
-```bash
-git clone https://github.com/visionml/pytracking.git
-```
-   
-#### Clone the submodules.  
-In the repository directory, run the commands:  
-```bash
-git submodule update --init  
-```  
-#### Install dependencies
-Run the installation script to install all the dependencies. You need to provide the conda install path (e.g. ~/anaconda3) and the name for the created conda environment (here ```pytracking```).  
-```bash
-bash install.sh conda_install_path pytracking
-```  
-This script will also download the default networks and set-up the environment.  
 
-**Note:** The install script has been tested on an Ubuntu 18.04 system. In case of issues, check the [detailed installation instructions](INSTALL.md). 
-
-**Windows:** (NOT Recommended!) Check [these installation instructions](INSTALL_win.md). 
-
-#### Let's test it!
-Activate the conda environment and run the script pytracking/run_webcam.py to run ATOM using the webcam input.  
 ```bash
-conda activate pytracking
+git clone --recurse-submodules <link-to-repo>
 cd pytracking
-python run_webcam.py dimp dimp50    
-```  
+git submodule update --init --recursive
 
+```
 
-## What's next?
+In order to use use any of the trackers, it is necessary to build the pytracking docker container.
+Follow the steps described in the [README.md](docker/README.md) and find the mounted project repository in the docker root directory, once it is running.
 
-#### [pytracking](pytracking) - for implementing your tracker
+### Before Running a Tracker
 
-#### [ltr](ltr) - for training your tracker
+To finalize the setup of pytracking make sure to run the [install script](install.sh). The install script downloads the
+wished network models for the trackers. Per default, the networks associated with the RTS tracker are downloaded.
+The install script also sets up the environment by running the _create_default_local_file()_ in [pytracking](pytracking/evaluation/environment.py) and [lts](ltr/admin/environment.py) which create _local.py_ files which describe where the pretrained networks are stored for example.
 
-## Contributors
+```bash
+./install.sh
+```
 
-### Main Contributors
-* [Martin Danelljan](https://martin-danelljan.github.io/)  
-* [Goutam Bhat](https://goutamgmb.github.io/)
-* [Christoph Mayer](https://2006pmach.github.io/)
-* [Matthieu Paul](https://github.com/mattpfr)
+After running the install script, make sure that the paths in the _local.py_ files for [pytracking](pytracking/evaluation/local.py) and [ltr](ltr/admin/local.py) are set correctly, according to your environment.
 
-### Guest Contributors
-* [Felix Järemo-Lawin](https://liu.se/en/employee/felja34) [LWL]
+### Running the RTS tracker on video data
 
-## Acknowledgments
-* Thanks for the great [PreciseRoIPooling](https://github.com/vacancy/PreciseRoIPooling) module.  
-* We use the implementation of the Lovász-Softmax loss from https://github.com/bermanmaxim/LovaszSoftmax.  
+The nice thing about the RTS tracker is that one can interactively draw a bounding box around the object one wants to
+track while the tracker is running. In order to do so, navigate to the pytracking directory and run _run_python_.py.
+
+```bash
+cd pytracking
+python3 run_video.py rts rts50 <path-to-video> --debug=<debug-level>
+
+```
+
+### Run demo
+
+To test if everything is working properly, navigate to the pytracking directory and execute the _run_video.py_ file with a demo
+video of a drone flying. Click at one corner of the drone and see a bounding box apppear in blue. Click a second time diagonally from
+the initial click to fully enclose the drone. Hit space to run the tracker frame-by-frame.
+
+```bash
+cd pytracking
+python3 run_video.py rts rts50 experiments/demo.mp4
+
+```

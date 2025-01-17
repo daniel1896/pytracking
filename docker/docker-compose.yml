@@ -1,0 +1,17 @@
+version: "3"
+
+services:
+  app:
+    image: pytracking_${USER}
+    network_mode: "host"
+    build: .
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /home/${USER}/.Xauthority:/home/${USER}/.Xauthority
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /home/${USER}/elia_franc_329:/home/${USER}/elia_franc
+      - /datasets/armasuisse/StStephan/drone:/home/${USER}/data
+    stdin_open: true
+    tty: true
+    command: /bin/bash

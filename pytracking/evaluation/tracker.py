@@ -14,6 +14,8 @@ from ltr.data.bounding_box_utils import masks_to_bboxes
 from pytracking.evaluation.multi_object_wrapper import MultiObjectWrapper
 from pathlib import Path
 import torch
+from time import perf_counter_ns
+
 
 
 _tracker_disp_colors = {1: (0, 255, 0), 2: (0, 0, 255), 3: (255, 0, 0),
@@ -273,6 +275,8 @@ class Tracker:
         params.tracker_name = self.name
         params.param_name = self.parameter_name
 
+        timings = []
+
         self._init_visdom(visdom_info, debug_)
 
         multiobj_mode = getattr(params, 'multiobj_mode', getattr(self.tracker_class, 'multiobj_mode', 'default'))
@@ -282,7 +286,7 @@ class Tracker:
             if hasattr(tracker, 'initialize_features'):
                 tracker.initialize_features()
         elif multiobj_mode == 'parallel':
-            tracker = MultiObjectWrapper(self.tracker_class, params, self.visdom, fast_load=True)
+            tracker = MultiObjectWrapper(self.tracker_class, params, self.visdom, fast_load=False)
         else:
             raise ValueError('Unknown multi object mode {}'.format(multiobj_mode))
 
@@ -346,6 +350,7 @@ class Tracker:
         if optional_box is not None:
             assert isinstance(optional_box, (list, tuple))
             assert len(optional_box) == 4, "valid box's format is [x,y,w,h]"
+            print('Should not print.')
 
             out = tracker.initialize(frame, {'init_bbox': OrderedDict({next_object_id: optional_box}),
                                        'init_object_ids': [next_object_id, ],
@@ -392,7 +397,13 @@ class Tracker:
 
             if len(sequence_object_ids) > 0:
                 info['sequence_object_ids'] = sequence_object_ids
+
+                t1_start = perf_counter_ns()
                 out = tracker.track(frame, info)
+                t1_stop = perf_counter_ns()
+                timings.append(t1_stop - t1_start)
+                print("Elapsed time:", np.mean(timings) / 1e6, "ms")
+
                 prev_output = OrderedDict(out)
 
                 if 'segmentation' in out:
@@ -460,6 +471,111 @@ class Tracker:
                 bbox_file = '{}_{}.txt'.format(base_results_path, obj_id)
                 np.savetxt(bbox_file, tracked_bb, delimiter='\t', fmt='%d')
 
+
+    def run_video_noninteractive(self, debug=None, visdom_info=None, videofilepath=None, optional_box=None, save_results=True):
+        """Run the tracker with a provided video file. Output the bounding
+        boxes in form of an ordered dictionary that contains a list of
+        bounding boxes for each object id.
+
+        args:
+            debug: Debug level.
+        """
+
+        params = self.get_parameters()
+
+        debug_ = debug
+        if debug is None:
+            debug_ = getattr(params, 'debug', 0)
+        params.debug = debug_
+
+        params.tracker_name = self.name
+        params.param_name = self.parameter_name
+
+        self._init_visdom(visdom_info, debug_)
+
+        multiobj_mode = getattr(params, 'multiobj_mode', getattr(self.tracker_class, 'multiobj_mode', 'default'))
+
+        if multiobj_mode == 'default':
+            tracker = self.create_tracker(params)
+            if hasattr(tracker, 'initialize_features'):
+                tracker.initialize_features()
+        elif multiobj_mode == 'parallel':
+            tracker = MultiObjectWrapper(self.tracker_class, params, self.visdom, fast_load=False)
+        else:
+            raise ValueError('Unknown multi object mode {}'.format(multiobj_mode))
+
+        frame_number = 0
+
+        if videofilepath is not None:
+            assert os.path.isfile(videofilepath), "Invalid param {}".format(videofilepath)
+            ", videofilepath must be a valid videofile"
+            cap = cv.VideoCapture(videofilepath)
+            _, frame = cap.read()
+            frame_number += 1
+        else:
+            cap = cv.VideoCapture(0)
+
+
+        next_object_id = 1
+        sequence_object_ids = []
+        prev_output = OrderedDict()
+        output_boxes = OrderedDict()
+        output_masks = OrderedDict()
+
+        assert optional_box is not None, "No initial bounding box provided."  
+        assert isinstance(optional_box, (list, tuple))
+        assert len(optional_box) == 4, "valid box's format is [x,y,w,h]"
+
+        out = tracker.initialize(frame, {'init_bbox': OrderedDict({next_object_id: optional_box}),
+                                    'init_object_ids': [next_object_id, ],
+                                    'object_ids': [next_object_id, ],
+                                    'sequence_object_ids': [next_object_id, ]})
+
+        prev_output = OrderedDict(out)
+
+        output_boxes[next_object_id] = [optional_box, ]
+        output_masks[next_object_id] = [None, ]
+        sequence_object_ids.append(next_object_id)
+        next_object_id += 1
+
+        # Wait for initial bounding box if video!
+        paused = videofilepath is not None
+
+        while True:
+
+            if not paused:
+                # Capture frame-by-frame
+                _, frame = cap.read()
+                frame_number += 1
+                if frame is None:
+                    break
+
+            info = OrderedDict()
+            info['previous_output'] = prev_output
+
+            if len(sequence_object_ids) > 0:
+                info['sequence_object_ids'] = sequence_object_ids
+                out = tracker.track(frame, info)
+
+                prev_output = OrderedDict(out)
+
+                if 'target_bbox' in out:
+                    for obj_id, state in out['target_bbox'].items():
+                        state = [int(s) for s in state]
+                        output_boxes[obj_id].append(state)
+
+                if 'segmentation' in out:
+                    output_masks[obj_id].append(out['segmentation'])
+
+            # After first frame, let the tracker run on the rest of the video.
+            paused = False
+            if frame_number == 10:
+                break
+
+        # When everything done, release the capture
+        cap.release()
+
+        return output_boxes
 
     def run_vot2020(self, debug=None, visdom_info=None):
         params = self.get_parameters()
@@ -683,6 +799,3 @@ class Tracker:
     def _read_image(self, image_file: str):
         im = cv.imread(image_file)
         return cv.cvtColor(im, cv.COLOR_BGR2RGB)
-
-
-

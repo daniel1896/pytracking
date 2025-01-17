@@ -4,6 +4,7 @@
 *.pyc
 *.pytest_cache
 *.ipynb_checkpoints/
+workspace/
 ltr/admin/local.py
 ltr/run_ltr_local.py
 ltr/train_settings/*/debug.py
@@ -14,3 +15,10 @@ pytracking/segmentation_results/
 pytracking/result_plots/
 pytracking/evaluation/local.py
 pytracking/run_local.py
+.vscode/
+pytracking/experiments/pure_event_samples/
+.gitignore
+pytracking/experiments/
+pytracking/results/
+pytracking/results_25k
+evutils/
